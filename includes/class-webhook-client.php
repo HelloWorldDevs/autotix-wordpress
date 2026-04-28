@@ -7,6 +7,9 @@ namespace Autotix;
  */
 class Webhook_Client {
 
+	/** Production webhook endpoint — not configurable. */
+	private const WEBHOOK_URL = 'https://app.autotix.io/api/webhook/error';
+
 	private array $options;
 
 	public function __construct( array $options ) {
@@ -14,17 +17,14 @@ class Webhook_Client {
 	}
 
 	/**
-	 * Send a payload to the configured webhook URL.
+	 * Send a payload to the Autotix webhook.
 	 *
 	 * @param array $payload The error payload.
 	 * @return bool TRUE on success.
 	 * @throws \RuntimeException On failure.
 	 */
 	public function send( array $payload ): bool {
-		$url = $this->options['webhook_url'] ?? '';
-		if ( empty( $url ) ) {
-			throw new \RuntimeException( 'Autotix webhook URL is not configured.' );
-		}
+		$url = self::WEBHOOK_URL;
 
 		$body = wp_json_encode( $payload );
 		if ( false === $body ) {

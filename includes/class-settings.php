@@ -50,11 +50,6 @@ class Settings {
 			'description' => __( 'When enabled, PHP errors meeting the severity threshold will be sent to Autotix for automated ticket creation.', 'autotix' ),
 		] );
 
-		$this->add_field( 'webhook_url', __( 'Webhook URL', 'autotix' ), 'autotix_general', 'render_url', [
-			'description' => __( 'The full URL of your Autotix webhook endpoint (e.g. https://app.autotix.io/api/webhook/error).', 'autotix' ),
-			'placeholder' => 'https://app.autotix.io/api/webhook/error',
-		] );
-
 		// ---- Authentication section ----
 		add_settings_section(
 			'autotix_auth',
@@ -171,7 +166,6 @@ class Settings {
 
 		$sanitized = [
 			'enabled'            => ! empty( $input['enabled'] ),
-			'webhook_url'        => esc_url_raw( $input['webhook_url'] ?? '' ),
 			'auth_method'        => sanitize_text_field( $input['auth_method'] ?? 'token' ),
 			'send_immediately'   => ! empty( $input['send_immediately'] ),
 			'capture_warnings'   => ! empty( $input['capture_warnings'] ),

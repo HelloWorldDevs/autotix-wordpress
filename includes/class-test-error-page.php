@@ -39,7 +39,7 @@ class Test_Error_Page {
 		}
 
 		$options  = get_option( 'autotix_settings', [] );
-		$enabled  = ! empty( $options['enabled'] ) && ! empty( $options['webhook_url'] );
+		$enabled  = ! empty( $options['enabled'] );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Autotix - Trigger Test Errors', 'autotix' ); ?></h1>

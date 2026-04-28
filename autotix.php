@@ -40,8 +40,8 @@ function autotix_init(): void {
 		new Autotix\Test_Error_Page();
 	}
 
-	// Only register error handlers when the plugin is enabled and configured.
-	if ( empty( $options['enabled'] ) || empty( $options['webhook_url'] ) ) {
+	// Only register error handlers when the plugin is enabled.
+	if ( empty( $options['enabled'] ) ) {
 		return;
 	}
 
@@ -58,7 +58,6 @@ add_action( 'plugins_loaded', 'autotix_init', 5 );
 function autotix_activate(): void {
 	$defaults = [
 		'enabled'            => false,
-		'webhook_url'        => '',
 		'auth_method'        => 'token',
 		'auth_token'         => '',
 		'auth_secret'        => '',
