@@ -26,6 +26,7 @@ require_once AUTOTIX_PLUGIN_DIR . 'includes/class-webhook-client.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-dedup.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-error-handler.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-settings.php';
+require_once AUTOTIX_PLUGIN_DIR . 'includes/class-test-error-page.php';
 
 /**
  * Bootstrap the plugin.
@@ -33,9 +34,10 @@ require_once AUTOTIX_PLUGIN_DIR . 'includes/class-settings.php';
 function autotix_init(): void {
 	$options = get_option( 'autotix_settings', [] );
 
-	// Always load the admin settings page.
+	// Always load the admin settings page and test error page.
 	if ( is_admin() ) {
 		new Autotix\Settings();
+		new Autotix\Test_Error_Page();
 	}
 
 	// Only register error handlers when the plugin is enabled and configured.

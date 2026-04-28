@@ -233,14 +233,23 @@ class Settings {
 			</form>
 
 			<hr>
-			<h2><?php esc_html_e( 'Test Connection', 'autotix' ); ?></h2>
+			<h2><?php esc_html_e( 'Testing', 'autotix' ); ?></h2>
 			<p>
 				<a href="<?php echo esc_url( admin_url( 'admin-post.php?action=autotix_test' ) ); ?>"
 				   class="button button-secondary">
-					<?php esc_html_e( 'Send Test Error', 'autotix' ); ?>
+					<?php esc_html_e( 'Send Test Payload', 'autotix' ); ?>
 				</a>
 				<span class="description">
-					<?php esc_html_e( 'Sends a test error payload to verify the webhook is working.', 'autotix' ); ?>
+					<?php esc_html_e( 'Sends a test payload directly to the webhook (bypasses PHP error handlers).', 'autotix' ); ?>
+				</span>
+			</p>
+			<p style="margin-top: 12px;">
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=autotix-test-errors' ) ); ?>"
+				   class="button button-secondary">
+					<?php esc_html_e( 'Trigger Sample Errors', 'autotix' ); ?>
+				</a>
+				<span class="description">
+					<?php esc_html_e( 'Trigger real PHP errors to test the full capture pipeline end-to-end.', 'autotix' ); ?>
 				</span>
 			</p>
 		</div>
