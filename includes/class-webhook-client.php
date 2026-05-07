@@ -2,13 +2,23 @@
 
 namespace Autotix;
 
+use Autotix\PhpSdk\StateRecorderInterface;
+use Autotix\PhpSdk\WebhookClient as CoreClient;
+use Nyholm\Psr7\Factory\Psr17Factory;
+
 /**
- * HTTP client that sends error payloads to the Autotix webhook endpoint.
+ * WordPress-side adapter around \Autotix\PhpSdk\WebhookClient.
+ *
+ * The HTTP transport, JSON encoding, auth, exception shape, and outcome
+ * recording all live in the shared SDK. This adapter only handles things
+ * WordPress owns: env-var-or-option lookup for secrets, error_log() as
+ * the fallback logger, and writing delivery outcomes to a transient so
+ * the admin status widget reflects reality.
+ *
+ * If you find yourself adding non-WP logic here, push it down into
+ * autotix/php-sdk so Drupal and Laravel inherit it for free.
  */
 class Webhook_Client {
-
-	/** Production webhook endpoint — not configurable. */
-	private const WEBHOOK_URL = 'https://app.autotix.io/api/webhook/error';
 
 	private array $options;
 
@@ -19,83 +29,33 @@ class Webhook_Client {
 	/**
 	 * Send a payload to the Autotix webhook.
 	 *
-	 * @param array $payload The error payload.
-	 * @return bool TRUE on success.
-	 * @throws \RuntimeException On failure.
+	 * @throws \RuntimeException Non-2xx response or JSON encoding failure.
+	 * @throws \Psr\Http\Client\ClientExceptionInterface Network failure.
 	 */
 	public function send( array $payload ): bool {
-		$url = self::WEBHOOK_URL;
+		$factory = new Psr17Factory();
 
-		$body = wp_json_encode( $payload );
-		if ( false === $body ) {
-			throw new \RuntimeException( 'Failed to encode Autotix webhook payload as JSON.' );
-		}
+		$core = new CoreClient(
+			new WpHttpClient(),
+			$factory,
+			$factory,
+			[
+				'auth_method' => $this->options['auth_method'] ?? 'token',
+				'auth_token'  => $this->get_env_or_option( 'AUTOTIX_AUTH_TOKEN', 'auth_token' ) ?: null,
+				'auth_secret' => $this->get_env_or_option( 'AUTOTIX_HMAC_SECRET', 'auth_secret' ) ?: null,
+				'debug'       => ! empty( $this->options['debug'] ),
+				'user_agent'  => 'Autotix-WordPress/' . AUTOTIX_VERSION,
+			],
+			new WpStateRecorder(),
+			new WpErrorLogLogger(),
+		);
 
-		$headers = [
-			'Content-Type' => 'application/json',
-			'User-Agent'   => 'Autotix-WordPress/' . AUTOTIX_VERSION,
-		];
-
-		// Authentication — prefer environment variables over options.
-		$auth_method = $this->options['auth_method'] ?? 'token';
-		$token       = $this->get_env_or_option( 'AUTOTIX_AUTH_TOKEN', 'auth_token' );
-		$secret      = $this->get_env_or_option( 'AUTOTIX_HMAC_SECRET', 'auth_secret' );
-
-		if ( 'token' === $auth_method && $token ) {
-			$headers['X-Webhook-Token'] = $token;
-		} elseif ( 'hmac' === $auth_method && $secret ) {
-			$headers['X-Webhook-Signature'] = hash_hmac( 'sha256', $body, $secret );
-		}
-
-		$debug = ! empty( $this->options['debug'] );
-
-		if ( $debug ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( sprintf(
-				'[Autotix] Sending to %s | source: %s | level: %s | message: %s',
-				$url,
-				$payload['source'] ?? '(none)',
-				$payload['level'] ?? '(none)',
-				mb_strimwidth( $payload['message'] ?? '(empty)', 0, 200, '...' )
-			) );
-		}
-
-		$response = wp_remote_post( $url, [
-			'body'    => $body,
-			'headers' => $headers,
-			'timeout' => (int) ( $this->options['timeout'] ?? 20 ),
-		] );
-
-		if ( is_wp_error( $response ) ) {
-			$error_msg = $response->get_error_message();
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( "[Autotix] Delivery FAILED (network): {$error_msg}" );
-			throw new \RuntimeException( "Autotix webhook request failed: {$error_msg}" );
-		}
-
-		$status = wp_remote_retrieve_response_code( $response );
-
-		if ( $status < 200 || $status >= 300 ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( "[Autotix] Delivery FAILED - HTTP {$status} from {$url}" );
-			throw new \RuntimeException( "Autotix webhook returned HTTP {$status}." );
-		}
-
-		// Always log successful deliveries.
-		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-		error_log( sprintf(
-			'[Autotix] Delivered error to %s - source: %s | level: %s | message: %s',
-			$url,
-			$payload['source'] ?? '(none)',
-			$payload['level'] ?? '(none)',
-			mb_strimwidth( $payload['message'] ?? '(empty)', 0, 120, '...' )
-		) );
-
-		return true;
+		return $core->send( $payload );
 	}
 
 	/**
-	 * Get a value from an environment variable, falling back to the saved option.
+	 * Get a value from an env var, falling back to the saved option.
+	 * Env wins so secrets can stay out of the wp_options table.
 	 */
 	private function get_env_or_option( string $env_name, string $option_key ): string {
 		$env = getenv( $env_name );
@@ -103,5 +63,47 @@ class Webhook_Client {
 			return $env;
 		}
 		return $this->options[ $option_key ] ?? '';
+	}
+}
+
+/**
+ * Adapter that satisfies the SDK's StateRecorderInterface using WordPress
+ * transients. Long-lived (30 days) so the admin status widget can show
+ * "last delivery N seconds ago / X delivered / Y failed" across requests.
+ */
+class WpStateRecorder implements StateRecorderInterface {
+
+	private const TTL = 30 * DAY_IN_SECONDS;
+
+	public function recordOutcome( string $status, array $context = [] ): void {
+		try {
+			set_transient( 'autotix_last_status', $status, self::TTL );
+			set_transient( 'autotix_last_delivery_at', time(), self::TTL );
+			$key     = 'ok' === $status ? 'autotix_total_delivered' : 'autotix_total_failed';
+			$current = (int) get_transient( $key );
+			set_transient( $key, $current + 1, self::TTL );
+		} catch ( \Throwable ) {
+			// State writes never break delivery.
+		}
+	}
+}
+
+/**
+ * Adapter that satisfies the SDK's PSR-3 LoggerInterface contract using
+ * WordPress's error_log() (debug.log on most hosts). Each level prefixes
+ * the entry so admins can grep by severity.
+ *
+ * Implementing PSR-3 inline avoids vendoring a fuller logger package.
+ */
+class WpErrorLogLogger extends \Psr\Log\AbstractLogger {
+
+	public function log( $level, string|\Stringable $message, array $context = [] ): void {
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		error_log( sprintf(
+			'[Autotix:%s] %s%s',
+			strtoupper( (string) $level ),
+			(string) $message,
+			$context ? ' ' . wp_json_encode( $context ) : ''
+		) );
 	}
 }

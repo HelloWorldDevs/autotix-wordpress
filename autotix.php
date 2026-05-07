@@ -21,7 +21,15 @@ define( 'AUTOTIX_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AUTOTIX_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'AUTOTIX_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
-// Load classes.
+// Vendor autoloader: required for autotix/php-sdk + nyholm/psr7. The .zip
+// release ships with vendor/ pre-scoped via php-scoper (see scoper.inc.php)
+// so multiple plugins shipping the same packages don't collide.
+if ( file_exists( AUTOTIX_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
+	require_once AUTOTIX_PLUGIN_DIR . 'vendor/autoload.php';
+}
+
+// Load plugin classes.
+require_once AUTOTIX_PLUGIN_DIR . 'includes/class-wp-http-client.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-webhook-client.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-dedup.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-error-handler.php';

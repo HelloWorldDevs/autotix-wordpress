@@ -1,0 +1,49 @@
+{
+  "name": "autotix/wordpress-plugin",
+  "description": "WordPress plugin that captures PHP errors and forwards them to Autotix.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://autotix.io",
+  "authors": [
+    {
+      "name": "Hello World Devs",
+      "email": "dev@helloworlddevs.com",
+      "homepage": "https://helloworlddevs.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1",
+    "autotix/php-sdk": "^0.1",
+    "nyholm/psr7": "^1.8"
+  },
+  "require-dev": {
+    "humbug/php-scoper": "^0.18",
+    "phpunit/phpunit": "^10.5 || ^11.0"
+  },
+  "repositories": [
+    {
+      "type": "path",
+      "url": "../../packages/php-sdk",
+      "options": { "symlink": true }
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Autotix\\": "includes/"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true
+  },
+  "scripts": {
+    "build:plugin": [
+      "@composer install --no-dev --optimize-autoloader",
+      "vendor/bin/php-scoper add-prefix --output-dir=build/vendor-scoped --force --quiet",
+      "@composer dump-autoload --working-dir=build/vendor-scoped --classmap-authoritative",
+      "rm -rf build/vendor && mv build/vendor-scoped build/vendor",
+      "@composer install --quiet"
+    ]
+  }
+}
