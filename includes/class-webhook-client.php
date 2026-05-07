@@ -2,7 +2,6 @@
 
 namespace Autotix;
 
-use Autotix\PhpSdk\StateRecorderInterface;
 use Autotix\PhpSdk\WebhookClient as CoreClient;
 use Nyholm\Psr7\Factory\Psr17Factory;
 
@@ -63,47 +62,5 @@ class Webhook_Client {
 			return $env;
 		}
 		return $this->options[ $option_key ] ?? '';
-	}
-}
-
-/**
- * Adapter that satisfies the SDK's StateRecorderInterface using WordPress
- * transients. Long-lived (30 days) so the admin status widget can show
- * "last delivery N seconds ago / X delivered / Y failed" across requests.
- */
-class WpStateRecorder implements StateRecorderInterface {
-
-	private const TTL = 30 * DAY_IN_SECONDS;
-
-	public function recordOutcome( string $status, array $context = [] ): void {
-		try {
-			set_transient( 'autotix_last_status', $status, self::TTL );
-			set_transient( 'autotix_last_delivery_at', time(), self::TTL );
-			$key     = 'ok' === $status ? 'autotix_total_delivered' : 'autotix_total_failed';
-			$current = (int) get_transient( $key );
-			set_transient( $key, $current + 1, self::TTL );
-		} catch ( \Throwable ) {
-			// State writes never break delivery.
-		}
-	}
-}
-
-/**
- * Adapter that satisfies the SDK's PSR-3 LoggerInterface contract using
- * WordPress's error_log() (debug.log on most hosts). Each level prefixes
- * the entry so admins can grep by severity.
- *
- * Implementing PSR-3 inline avoids vendoring a fuller logger package.
- */
-class WpErrorLogLogger extends \Psr\Log\AbstractLogger {
-
-	public function log( $level, string|\Stringable $message, array $context = [] ): void {
-		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-		error_log( sprintf(
-			'[Autotix:%s] %s%s',
-			strtoupper( (string) $level ),
-			(string) $message,
-			$context ? ' ' . wp_json_encode( $context ) : ''
-		) );
 	}
 }

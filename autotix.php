@@ -30,6 +30,8 @@ if ( file_exists( AUTOTIX_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
 
 // Load plugin classes.
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-wp-http-client.php';
+require_once AUTOTIX_PLUGIN_DIR . 'includes/class-wp-state-recorder.php';
+require_once AUTOTIX_PLUGIN_DIR . 'includes/class-wp-error-log-logger.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-webhook-client.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-dedup.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-error-handler.php';

@@ -17,7 +17,6 @@
     "nyholm/psr7": "^1.8"
   },
   "require-dev": {
-    "humbug/php-scoper": "^0.18",
     "phpunit/phpunit": "^10.5 || ^11.0"
   },
   "repositories": [
@@ -38,12 +37,6 @@
     "sort-packages": true
   },
   "scripts": {
-    "build:plugin": [
-      "@composer install --no-dev --optimize-autoloader",
-      "vendor/bin/php-scoper add-prefix --output-dir=build/vendor-scoped --force --quiet",
-      "@composer dump-autoload --working-dir=build/vendor-scoped --classmap-authoritative",
-      "rm -rf build/vendor && mv build/vendor-scoped build/vendor",
-      "@composer install --quiet"
-    ]
+    "build:plugin": "bin/build-zip.sh"
   }
 }
