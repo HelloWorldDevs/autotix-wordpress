@@ -4,6 +4,10 @@
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "homepage": "https://autotix.io",
+  "support": {
+    "source": "https://github.com/HelloWorldDevs/autotix-wordpress",
+    "issues": "https://github.com/HelloWorldDevs/autotix-wordpress/issues"
+  },
   "authors": [
     {
       "name": "Hello World Devs",
