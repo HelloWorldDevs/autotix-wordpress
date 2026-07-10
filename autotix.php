@@ -37,6 +37,7 @@ require_once AUTOTIX_PLUGIN_DIR . 'includes/class-dedup.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-error-handler.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-settings.php';
 require_once AUTOTIX_PLUGIN_DIR . 'includes/class-test-error-page.php';
+require_once AUTOTIX_PLUGIN_DIR . 'includes/class-env-reporter.php';
 
 /**
  * Bootstrap the plugin.
@@ -59,6 +60,12 @@ function autotix_init(): void {
 	$dedup   = new Autotix\Dedup( $options );
 	$handler = new Autotix\Error_Handler( $client, $dedup, $options );
 	$handler->register();
+
+	// Safety net: if the env-report cron wasn't scheduled (e.g. plugin
+	// updated in place without re-activation), schedule it now.
+	if ( ! wp_next_scheduled( 'autotix_report_env' ) ) {
+		wp_schedule_event( time(), 'daily', 'autotix_report_env' );
+	}
 }
 add_action( 'plugins_loaded', 'autotix_init', 5 );
 
@@ -143,8 +150,39 @@ register_activation_hook( __FILE__, 'autotix_schedule_cron' );
 
 function autotix_unschedule_cron(): void {
 	wp_clear_scheduled_hook( 'autotix_process_queue' );
+	wp_clear_scheduled_hook( 'autotix_report_env' );
 }
 register_deactivation_hook( __FILE__, 'autotix_unschedule_cron' );
+
+/**
+ * Environment reporting for the Vulnerability Scanning feature.
+ *
+ * Runs daily via WP-Cron; the Env_Reporter itself no-ops (no network
+ * call) unless the plugin fingerprint changed or the ~monthly recheck
+ * window elapsed, so this is cheap to schedule daily.  The server drops
+ * the report unless the customer enabled vuln scanning, so reporting is
+ * safe to do unconditionally — the opt-in gate is server-side.
+ */
+function autotix_report_env(): void {
+	$options = get_option( 'autotix_settings', [] );
+	if ( empty( $options['enabled'] ) ) {
+		return;
+	}
+	( new Autotix\Env_Reporter( $options ) )->maybe_report();
+}
+add_action( 'autotix_report_env', 'autotix_report_env' );
+
+/**
+ * Schedule env reporting on activation, and fire once immediately so a
+ * freshly-installed plugin shows up in Known Issues without waiting a
+ * day for the first cron tick.
+ */
+function autotix_schedule_env_report(): void {
+	if ( ! wp_next_scheduled( 'autotix_report_env' ) ) {
+		wp_schedule_event( time(), 'daily', 'autotix_report_env' );
+	}
+}
+register_activation_hook( __FILE__, 'autotix_schedule_env_report' );
 
 /**
  * Add a "Settings" link on the Plugins page.
