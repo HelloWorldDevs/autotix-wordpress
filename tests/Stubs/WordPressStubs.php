@@ -18,6 +18,8 @@ if ( ! defined( 'DAY_IN_SECONDS' ) ) {
 // Default stub state. Tests reset this between cases.
 $GLOBALS['autotix_wp_stub'] = [
 	'transients' => [],
+	'options' => [],           // get_option / update_option / add_option store
+	'plugins' => [],           // what get_plugins() returns
 	'http_response' => null,   // null = error; ['code'=>200,'body'=>'…','headers'=>[]] = ok
 	'http_error_message' => null,
 	'last_request' => null,    // captured args from wp_remote_post
@@ -75,6 +77,46 @@ if ( ! function_exists( 'set_transient' ) ) {
 if ( ! function_exists( 'get_transient' ) ) {
 	function get_transient( $key ) {
 		return $GLOBALS['autotix_wp_stub']['transients'][ $key ]['value'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( $key, $default = false ) {
+		return $GLOBALS['autotix_wp_stub']['options'][ $key ] ?? $default;
+	}
+}
+
+if ( ! function_exists( 'update_option' ) ) {
+	function update_option( $key, $value, $autoload = null ) {
+		$GLOBALS['autotix_wp_stub']['options'][ $key ] = $value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'add_option' ) ) {
+	function add_option( $key, $value = '', $deprecated = '', $autoload = null ) {
+		$GLOBALS['autotix_wp_stub']['options'][ $key ] = $value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'home_url' ) ) {
+	function home_url( $path = '', $scheme = null ) {
+		return 'https://demo.example.test' . $path;
+	}
+}
+
+if ( ! function_exists( 'get_bloginfo' ) ) {
+	function get_bloginfo( $show = '' ) {
+		return 'version' === $show ? '6.5' : '';
+	}
+}
+
+// Defining this makes Env_Reporter::collect_plugins() skip the
+// require ABSPATH . 'wp-admin/includes/plugin.php' branch.
+if ( ! function_exists( 'get_plugins' ) ) {
+	function get_plugins() {
+		return $GLOBALS['autotix_wp_stub']['plugins'] ?? [];
 	}
 }
 

@@ -185,6 +185,35 @@ function autotix_schedule_env_report(): void {
 register_activation_hook( __FILE__, 'autotix_schedule_env_report' );
 
 /**
+ * Force an environment report the moment the admin saves an enabled
+ * config — this IS the "I just set it up" moment, so there's no reason to
+ * wait for cron or make them click "Re-report environment now" separately.
+ * Mirrors the Drupal SettingsForm auto-report on save.
+ *
+ * Fail-soft: a telemetry error must never break the settings save. The
+ * verdict is persisted to the separate autotix_env_report_state option
+ * (not autotix_settings), so this cannot recurse through these hooks.
+ */
+function autotix_maybe_report_env_now( array $settings ): void {
+	if ( empty( $settings['enabled'] ) ) {
+		return;
+	}
+	try {
+		( new Autotix\Env_Reporter( $settings ) )->maybe_report( true );
+	} catch ( \Throwable $e ) {
+		// Swallow — the save must succeed regardless.
+	}
+}
+// update_option_{$option} fires with ($old_value, $value); add_option_{$option}
+// with ($option, $value). Adapt each to the new settings array.
+add_action( 'update_option_autotix_settings', function ( $old_value, $value ) {
+	autotix_maybe_report_env_now( (array) $value );
+}, 10, 2 );
+add_action( 'add_option_autotix_settings', function ( $option, $value ) {
+	autotix_maybe_report_env_now( (array) $value );
+}, 10, 2 );
+
+/**
  * Add a "Settings" link on the Plugins page.
  */
 function autotix_plugin_action_links( array $links ): array {

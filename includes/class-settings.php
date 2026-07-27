@@ -246,8 +246,112 @@ class Settings {
 					<?php esc_html_e( 'Trigger real PHP errors to test the full capture pipeline end-to-end.', 'autotix' ); ?>
 				</span>
 			</p>
+
+			<hr>
+			<h2><?php esc_html_e( 'Vulnerability Scanning', 'autotix' ); ?></h2>
+			<p><?php $this->render_env_status(); ?></p>
+			<p>
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=autotix_report_env' ), 'autotix_report_env' ) ); ?>"
+				   class="button button-secondary">
+					<?php esc_html_e( 'Re-report environment now', 'autotix' ); ?>
+				</a>
+				<span class="description">
+					<?php esc_html_e( 'Force an environment report and show the result. Use after enabling Vulnerability Scanning in your Autotix dashboard.', 'autotix' ); ?>
+				</span>
+			</p>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Render the current environment-report status inline (server-side).
+	 *
+	 * Mirrors the env rows of the Drupal status widget (autotix-status.js):
+	 * never-reported / failed / declined / accepted, plus the next-check ETA.
+	 * All server-supplied text (the decline reason) is escaped.
+	 */
+	private function render_env_status(): void {
+		$reporter = new Env_Reporter( get_option( 'autotix_settings', [] ) );
+		$last     = $reporter->last_report();
+		$next     = $reporter->next_check_at();
+
+		if ( ! $last ) {
+			esc_html_e( 'Environment not reported yet — runs on cron, or use "Re-report environment now" below.', 'autotix' );
+			return;
+		}
+
+		$when = $this->time_ago( (int) $last['time'] );
+
+		if ( empty( $last['sent'] ) ) {
+			printf(
+				/* translators: %s = time ago, e.g. "5m ago" */
+				esc_html__( 'Environment report FAILED %s — check connectivity and the auth token.', 'autotix' ),
+				esc_html( $when )
+			);
+			return;
+		}
+
+		if ( isset( $last['stored'] ) && false === $last['stored'] ) {
+			$reason = ! empty( $last['reason'] )
+				? $last['reason']
+				: __( 'Vulnerability Scanning is not enabled for your organization.', 'autotix' );
+			printf(
+				/* translators: 1: time ago, 2: server-supplied reason */
+				esc_html__( 'Environment report declined %1$s — %2$s', 'autotix' ),
+				esc_html( $when ),
+				esc_html( $reason )
+			);
+			return;
+		}
+
+		printf(
+			/* translators: %s = time ago, e.g. "2h ago" */
+			esc_html__( 'Environment reported %s.', 'autotix' ),
+			esc_html( $when )
+		);
+		if ( $next ) {
+			echo ' ';
+			printf(
+				/* translators: %s = relative time, e.g. "in 28d" */
+				esc_html__( 'Next check %s.', 'autotix' ),
+				esc_html( $this->time_until( $next ) )
+			);
+		}
+	}
+
+	/**
+	 * Format a past Unix timestamp as "Ns/m/h/d ago". Ports the thresholds
+	 * from the Drupal status widget so the two modules read identically.
+	 */
+	private function time_ago( int $ts ): string {
+		$seconds = time() - $ts;
+		if ( $seconds < 60 ) {
+			return $seconds . 's ago';
+		}
+		if ( $seconds < 3600 ) {
+			return (int) floor( $seconds / 60 ) . 'm ago';
+		}
+		if ( $seconds < 86400 ) {
+			return (int) floor( $seconds / 3600 ) . 'h ago';
+		}
+		return (int) floor( $seconds / 86400 ) . 'd ago';
+	}
+
+	/**
+	 * Format a future Unix timestamp as "in Xm/h/d" (or "due now" once past).
+	 */
+	private function time_until( int $ts ): string {
+		$seconds = $ts - time();
+		if ( $seconds <= 0 ) {
+			return 'due now';
+		}
+		if ( $seconds < 3600 ) {
+			return 'in ' . max( 1, (int) floor( $seconds / 60 ) ) . 'm';
+		}
+		if ( $seconds < 86400 ) {
+			return 'in ' . (int) floor( $seconds / 3600 ) . 'h';
+		}
+		return 'in ' . (int) floor( $seconds / 86400 ) . 'd';
 	}
 
 	// ---- Field renderers ----
@@ -454,6 +558,69 @@ add_action( 'admin_notices', function () {
 			esc_html__( 'Test failed: %s', 'autotix' ),
 			esc_html( $error )
 		);
+		echo '</p></div>';
+	}
+} );
+
+/**
+ * Handle the "Re-report environment now" button — force an environment
+ * report for Vulnerability Scanning and surface the server's verdict.
+ * Nonced + capability-gated because it performs network I/O.
+ */
+add_action( 'admin_post_autotix_report_env', function () {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do this.', 'autotix' ) );
+	}
+	check_admin_referer( 'autotix_report_env' );
+
+	$reporter = new Env_Reporter( get_option( 'autotix_settings', [] ) );
+
+	try {
+		$sent = $reporter->maybe_report( true );
+		$last = $reporter->last_report();
+		if ( ! $sent ) {
+			$result = 'failed';
+		} elseif ( isset( $last['stored'] ) && false === $last['stored'] ) {
+			$result = 'declined';
+		} else {
+			$result = 'ok';
+		}
+	} catch ( \Throwable $e ) {
+		$result = 'failed';
+	}
+
+	wp_safe_redirect( admin_url( "options-general.php?page=autotix&autotix_env={$result}" ) );
+	exit;
+} );
+
+/**
+ * Show admin notices for the "Re-report environment now" result.
+ */
+add_action( 'admin_notices', function () {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! isset( $_GET['autotix_env'] ) ) {
+		return;
+	}
+
+	$page = sanitize_text_field( wp_unslash( $_GET['page'] ?? '' ) );
+	if ( 'autotix' !== $page ) {
+		return;
+	}
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$result = sanitize_key( wp_unslash( $_GET['autotix_env'] ) );
+
+	if ( 'ok' === $result ) {
+		echo '<div class="notice notice-success is-dismissible"><p>';
+		esc_html_e( 'Environment reported to Autotix. Findings appear on your project’s Known Issues after the next scan.', 'autotix' );
+		echo '</p></div>';
+	} elseif ( 'declined' === $result ) {
+		echo '<div class="notice notice-warning is-dismissible"><p>';
+		esc_html_e( 'Autotix received the report but declined to store it — Vulnerability Scanning may not be enabled for your organization.', 'autotix' );
+		echo '</p></div>';
+	} else {
+		echo '<div class="notice notice-error is-dismissible"><p>';
+		esc_html_e( 'Environment report failed — check connectivity and the auth token.', 'autotix' );
 		echo '</p></div>';
 	}
 } );

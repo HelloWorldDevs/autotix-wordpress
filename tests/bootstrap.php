@@ -19,3 +19,4 @@ require_once __DIR__ . '/../includes/class-wp-http-client.php';
 require_once __DIR__ . '/../includes/class-wp-state-recorder.php';
 require_once __DIR__ . '/../includes/class-wp-error-log-logger.php';
 require_once __DIR__ . '/../includes/class-webhook-client.php';
+require_once __DIR__ . '/../includes/class-env-reporter.php';

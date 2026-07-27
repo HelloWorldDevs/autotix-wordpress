@@ -33,13 +33,20 @@ class Env_Reporter {
 	}
 
 	/**
-	 * Collect + report the environment when due.  Called on the monthly
-	 * cron and once on activation.  No-ops (without a network call) when
-	 * the fingerprint is unchanged and the recheck window hasn't elapsed.
+	 * Collect + report the environment when due.  Called on the daily cron
+	 * and once on activation.  No-ops (without a network call) when the
+	 * fingerprint is unchanged and the recheck window hasn't elapsed.
+	 *
+	 * @param bool $force Bypass the send-only-if-changed cadence. Used by the
+	 *                    "Re-report environment now" button and report-on-save,
+	 *                    e.g. right after enabling Vulnerability Scanning
+	 *                    server-side — a declined report also advanced the
+	 *                    recheck window, so without force the site would stay
+	 *                    silent for up to a month.
 	 *
 	 * @return bool True when a report was sent (and accepted).
 	 */
-	public function maybe_report(): bool {
+	public function maybe_report( bool $force = false ): bool {
 		$env         = $this->collect();
 		$fingerprint = CoreReporter::fingerprint(
 			$env['platform'],
@@ -53,7 +60,7 @@ class Env_Reporter {
 		$next  = (int) ( $state['next_check'] ?? 0 );
 
 		// Unchanged + not yet due → skip the network call entirely.
-		if ( $fingerprint === $last && time() < $next ) {
+		if ( ! $force && $fingerprint === $last && time() < $next ) {
 			return false;
 		}
 
@@ -81,6 +88,12 @@ class Env_Reporter {
 			}
 		}
 
+		// Record the server's verdict for the settings-page status line:
+		// sent+stored = accepted; sent+stored:false = declined (reason says
+		// Vulnerability Scanning is off server-side); !sent = network failure.
+		// getLastResult() is null if report() threw before responding.
+		$result = $reporter->getLastResult();
+
 		// Persist the new fingerprint + next-check regardless of outcome,
 		// so a transient failure doesn't hammer the endpoint every minute.
 		update_option(
@@ -89,11 +102,38 @@ class Env_Reporter {
 				'fingerprint' => $fingerprint,
 				'next_check'  => time() + self::RECHECK_DAYS * DAY_IN_SECONDS,
 				'last_sent'   => $sent ? time() : ( $state['last_sent'] ?? 0 ),
+				'last_report' => [
+					'time'   => time(),
+					'sent'   => $sent,
+					'stored' => $result['stored'] ?? null,
+					'reason' => $result['reason'] ?? null,
+				],
 			],
 			false,
 		);
 
 		return $sent;
+	}
+
+	/**
+	 * Last report outcome for the settings-page status line, or null if the
+	 * environment has never been reported.
+	 *
+	 * @return array{time: int, sent: bool, stored: ?bool, reason: ?string}|null
+	 */
+	public function last_report(): ?array {
+		$state = get_option( self::OPTION_KEY, [] );
+		$last  = $state['last_report'] ?? null;
+		return is_array( $last ) ? $last : null;
+	}
+
+	/**
+	 * Next scheduled env re-check (Unix timestamp), or null if none stored.
+	 */
+	public function next_check_at(): ?int {
+		$state = get_option( self::OPTION_KEY, [] );
+		$next  = (int) ( $state['next_check'] ?? 0 );
+		return $next > 0 ? $next : null;
 	}
 
 	/**
