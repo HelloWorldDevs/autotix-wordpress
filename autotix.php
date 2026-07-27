@@ -3,7 +3,7 @@
  * Plugin Name: Autotix
  * Plugin URI:  https://autotix.io
  * Description: Captures PHP errors, warnings, and exceptions and sends them to your Autotix webhook for automated ticket creation and auto-fix PRs.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      Hello World Devs
  * Author URI:  https://helloworlddevs.com
  * License:     GPL-2.0-or-later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AUTOTIX_VERSION', '1.0.0' );
+define( 'AUTOTIX_VERSION', '1.1.0' );
 define( 'AUTOTIX_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AUTOTIX_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'AUTOTIX_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
