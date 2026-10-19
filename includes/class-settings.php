@@ -229,7 +229,7 @@ class Settings {
 			<hr>
 			<h2><?php esc_html_e( 'Testing', 'autotix' ); ?></h2>
 			<p>
-				<a href="<?php echo esc_url( admin_url( 'admin-post.php?action=autotix_test' ) ); ?>"
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=autotix_test' ), 'autotix_test' ) ); ?>"
 				   class="button button-secondary">
 					<?php esc_html_e( 'Send Test Payload', 'autotix' ); ?>
 				</a>
@@ -496,6 +496,8 @@ add_action( 'admin_post_autotix_test', function () {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( esc_html__( 'You do not have permission to do this.', 'autotix' ) );
 	}
+	// Without a nonce, any page an admin visits could trigger a send. REQ 15.10
+	check_admin_referer( 'autotix_test' );
 
 	$options = get_option( 'autotix_settings', [] );
 	$client  = new Webhook_Client( $options );
