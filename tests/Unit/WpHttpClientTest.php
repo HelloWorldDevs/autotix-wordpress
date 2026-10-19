@@ -115,4 +115,21 @@ class WpHttpClientTest extends TestCase {
 
 		$this->assertSame( 0, $GLOBALS['autotix_wp_stub']['last_request']['args']['redirection'] );
 	}
+
+	public function test_uses_twenty_second_timeout_by_default(): void {
+		( new WpHttpClient() )->sendRequest( $this->makeRequest() );
+		$this->assertSame( 20, $GLOBALS['autotix_wp_stub']['last_request']['args']['timeout'] );
+	}
+
+	public function test_uses_configured_timeout(): void {
+		( new WpHttpClient( 7 ) )->sendRequest( $this->makeRequest() );
+		$this->assertSame( 7, $GLOBALS['autotix_wp_stub']['last_request']['args']['timeout'] );
+	}
+
+	public function test_clamps_timeout_to_settings_range(): void {
+		( new WpHttpClient( 0 ) )->sendRequest( $this->makeRequest() );
+		$this->assertSame( 1, $GLOBALS['autotix_wp_stub']['last_request']['args']['timeout'] );
+		( new WpHttpClient( 600 ) )->sendRequest( $this->makeRequest() );
+		$this->assertSame( 60, $GLOBALS['autotix_wp_stub']['last_request']['args']['timeout'] );
+	}
 }

@@ -155,4 +155,10 @@ class WebhookClientTest extends TestCase {
 		$this->assertSame( 'failed', $transients['autotix_last_status']['value'] );
 		$this->assertSame( 1, $transients['autotix_total_failed']['value'] );
 	}
+
+	public function test_passes_configured_timeout_to_http_request(): void {
+		$client = new Webhook_Client( [ 'auth_method' => 'none', 'timeout' => 9 ] );
+		$client->send( [ 'source' => 'wordpress', 'message' => 'x' ] );
+		$this->assertSame( 9, $GLOBALS['autotix_wp_stub']['last_request']['args']['timeout'] );
+	}
 }

@@ -35,7 +35,7 @@ class Webhook_Client {
 		$factory = new Psr17Factory();
 
 		$core = new CoreClient(
-			new WpHttpClient(),
+			new WpHttpClient( (int) ( $this->options['timeout'] ?? 20 ) ),
 			$factory,
 			$factory,
 			[

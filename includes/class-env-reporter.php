@@ -66,7 +66,7 @@ class Env_Reporter {
 
 		$factory = new Psr17Factory();
 		$reporter = new CoreReporter(
-			new WpHttpClient(),
+			new WpHttpClient( (int) ( $this->options['timeout'] ?? 20 ) ),
 			$factory,
 			$factory,
 			[

@@ -23,6 +23,13 @@ use Nyholm\Psr7\Response;
  */
 class WpHttpClient implements ClientInterface {
 
+	/**
+	 * @param int $timeout Request timeout in seconds, from the plugin's
+	 *   "HTTP Timeout" setting (clamped to 1-60 on save). PSR-18 has no
+	 *   per-request timeout, so the adapter carries it. REQ 15.8
+	 */
+	public function __construct( private readonly int $timeout = 20 ) {}
+
 	public function sendRequest( RequestInterface $request ): ResponseInterface {
 		$body    = (string) $request->getBody();
 		$headers = [];
@@ -34,9 +41,7 @@ class WpHttpClient implements ClientInterface {
 			'method'      => $request->getMethod(),
 			'headers'     => $headers,
 			'body'        => $body,
-			// SDK passes its own timeout via the request; default to a sane
-			// upper bound so a misbehaving endpoint can't hang the request.
-			'timeout'     => 20,
+			'timeout'     => max( 1, min( 60, $this->timeout ) ),
 			// Don't follow redirects — webhook endpoints shouldn't redirect.
 			'redirection' => 0,
 		] );
