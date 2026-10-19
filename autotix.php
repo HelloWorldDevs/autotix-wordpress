@@ -79,7 +79,6 @@ function autotix_activate(): void {
 		'auth_token'         => '',
 		'auth_secret'        => '',
 		'send_immediately'   => true,
-		'severity_threshold' => E_ERROR,
 		'capture_warnings'   => true,
 		'capture_notices'    => false,
 		'capture_deprecated' => false,
